@@ -1,11 +1,13 @@
 <template>
-  <Tutorial />
+  <TetrisGame />
 </template>
 
 <script lang="ts">
 import Vue from 'vue'
+import TetrisGame from '~/components/TetrisGame.vue'
 
 export default Vue.extend({
   name: 'IndexPage',
+  components: { TetrisGame },
 })
 </script>
