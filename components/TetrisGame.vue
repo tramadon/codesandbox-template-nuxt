@@ -22,6 +22,24 @@
               <p>{{ linesCleared }}</p>
             </div>
           </section>
+          <section class="hold-piece">
+            <h2>Hold</h2>
+            <div class="mini-grid" :class="{ empty: !heldPieceKey }">
+              <div
+                v-for="(row, rowIndex) in holdPreview"
+                :key="`hold-row-${rowIndex}`"
+                class="mini-row"
+              >
+                <div
+                  v-for="(cell, cellIndex) in row"
+                  :key="`hold-cell-${rowIndex}-${cellIndex}`"
+                  class="mini-cell"
+                  :class="{ filled: cell }"
+                />
+              </div>
+              <p v-if="!heldPieceKey" class="mini-placeholder">Empty slot</p>
+            </div>
+          </section>
           <section class="next-piece">
             <h2>Next</h2>
             <div class="mini-grid">
@@ -57,6 +75,13 @@
             >
               Hard Drop
             </button>
+            <button
+              class="ghost"
+              :disabled="!isRunning || isPaused || gameOver || hasHeldThisTurn"
+              @click="holdPiece"
+            >
+              Hold Piece
+            </button>
           </section>
           <section class="legend">
             <h2>Controls</h2>
@@ -67,6 +92,7 @@
               <li><span>Space</span> Hard drop</li>
               <li><span>P</span> Pause</li>
               <li><span>R</span> Restart</li>
+              <li><span>C</span> Hold piece</li>
             </ul>
           </section>
         </aside>
@@ -361,6 +387,8 @@ export default Vue.extend({
       currentRotation: 0,
       currentPosition: { x: 3, y: -2 },
       nextPieceKey: randomPiece() as PieceKey,
+      heldPieceKey: null as PieceKey | null,
+      hasHeldThisTurn: false,
       loopId: null as number | null,
       score: 0,
       linesCleared: 0,
@@ -434,6 +462,24 @@ export default Vue.extend({
       })
       return grid
     },
+    holdPreview(): boolean[][] {
+      const size = 4
+      const grid = Array.from({ length: size }, () => Array(size).fill(false))
+      const holdKey = this.heldPieceKey
+      if (!holdKey) {
+        return grid
+      }
+      const piece = TETROMINOS[holdKey]
+      const blocks = piece.rotations[0]
+      blocks.forEach(({ x, y }) => {
+        const col = x - 1
+        const row = y
+        if (row >= 0 && row < size && col >= 0 && col < size) {
+          grid[row][col] = true
+        }
+      })
+      return grid
+    },
   },
   mounted() {
     if (typeof window !== 'undefined') {
@@ -466,6 +512,8 @@ export default Vue.extend({
       this.currentRotation = 0
       this.currentPosition = { x: 3, y: -2 }
       this.nextPieceKey = randomPiece()
+      this.heldPieceKey = null
+      this.hasHeldThisTurn = false
       this.spawnPiece()
       this.lastDropTime = performance.now()
       this.startLoop()
@@ -512,6 +560,8 @@ export default Vue.extend({
         'P',
         'r',
         'R',
+        'c',
+        'C',
       ]
       if (keys.includes(event.key)) {
         event.preventDefault()
@@ -559,6 +609,10 @@ export default Vue.extend({
         case 'Spacebar':
           this.hardDrop()
           break
+        case 'c':
+        case 'C':
+          this.holdPiece()
+          break
         default:
       }
     },
@@ -571,12 +625,17 @@ export default Vue.extend({
         this.lastDropTime = performance.now()
       }
     },
-    spawnPiece(): void {
-      const pieceKey = this.nextPieceKey || randomPiece()
-      this.currentPieceKey = pieceKey
+    spawnPiece(pieceKey?: PieceKey, resetHold = true): void {
+      const keyToUse = pieceKey || this.nextPieceKey || randomPiece()
+      this.currentPieceKey = keyToUse
       this.currentRotation = 0
       this.currentPosition = { x: 3, y: -2 }
-      this.nextPieceKey = randomPiece()
+      if (!pieceKey) {
+        this.nextPieceKey = randomPiece()
+      }
+      if (resetHold) {
+        this.hasHeldThisTurn = false
+      }
 
       if (!this.canPlace(this.currentPosition, this.currentRotation)) {
         this.endGame()
@@ -722,6 +781,28 @@ export default Vue.extend({
       const cleared = this.clearLines()
       this.updateScore(cleared)
       this.spawnPiece()
+    },
+    holdPiece(): void {
+      if (
+        !this.currentPieceKey ||
+        !this.isRunning ||
+        this.isPaused ||
+        this.gameOver ||
+        this.hasHeldThisTurn
+      ) {
+        return
+      }
+      const pieceToHold = this.currentPieceKey
+      if (this.heldPieceKey) {
+        const pieceFromHold = this.heldPieceKey
+        this.heldPieceKey = pieceToHold
+        this.spawnPiece(pieceFromHold, false)
+      } else {
+        this.heldPieceKey = pieceToHold
+        this.spawnPiece(undefined, false)
+      }
+      this.hasHeldThisTurn = true
+      this.lastDropTime = performance.now()
     },
     clearLines(): number {
       const remaining: (BoardCell | null)[][] = []
@@ -912,7 +993,8 @@ export default Vue.extend({
   gap: 1rem;
 }
 
-.next-piece {
+.next-piece,
+.hold-piece {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -925,6 +1007,13 @@ export default Vue.extend({
   padding: 0.75rem;
   display: grid;
   gap: 0.35rem;
+}
+
+.mini-grid.empty {
+  position: relative;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(8, 10, 18, 0.55);
 }
 
 .mini-row {
@@ -947,6 +1036,15 @@ export default Vue.extend({
     rgba(255, 255, 255, 0.6),
     rgba(255, 255, 255, 0.15)
   );
+}
+
+.mini-placeholder {
+  grid-column: 1 / -1;
+  justify-self: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
 }
 
 .controls {
