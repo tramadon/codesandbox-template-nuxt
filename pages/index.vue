@@ -1,13 +1,13 @@
 <template>
-  <TetrisGame />
+  <OrbitalArtStudio />
 </template>
 
 <script lang="ts">
 import Vue from 'vue'
-import TetrisGame from '~/components/TetrisGame.vue'
+import OrbitalArtStudio from '~/components/OrbitalArtStudio.vue'
 
 export default Vue.extend({
   name: 'IndexPage',
-  components: { TetrisGame },
+  components: { OrbitalArtStudio },
 })
 </script>
